@@ -1,26 +1,450 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
+/* Tailwind v4: @theme generates font-display, font-heading, font-body utilities.
+   --nf-* variables are injected by next/font on <html>; fallbacks cover SSR. */
+@theme {
+  --font-display: var(--nf-bebas, 'Bebas Neue', sans-serif);
+  --font-heading: var(--nf-barlow-cond, 'Barlow Condensed', sans-serif);
+  --font-body:    var(--nf-barlow, 'Barlow', sans-serif);
+}
+
+/* Swapstyle Design System variables */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --font-display: var(--nf-bebas, 'Bebas Neue', sans-serif);
+  --font-heading: var(--nf-barlow-cond, 'Barlow Condensed', sans-serif);
+  --font-body:    var(--nf-barlow, 'Barlow', sans-serif);
+
+  /* Fondos */
+  --bg-base: #000000;
+  --bg-surface: #0D0D0D;
+  --bg-card: #111111;
+  --bg-elevated: #1A1A1A;
+  --bg-input: #161616;
+
+  /* Bordes */
+  --border-subtle: #222222;
+  --border-default: #2E2E2E;
+  --border-strong: #404040;
+
+  /* Acento principal — violeta Swapstyle */
+  --accent-primary: #7C3AED;
+  --accent-primary-hover: #6D28D9;
+  --accent-primary-light: #8B5CF6;
+  --accent-glow: rgba(124, 58, 237, 0.3);
+
+  /* Acento secundario — del degradé del logo */
+  --accent-secondary: #F59E0B;
+
+  /* Textos */
+  --text-primary: #FFFFFF;
+  --text-secondary: #A3A3A3;
+  --text-muted: #525252;
+  --text-accent: #8B5CF6;
+
+  /* Semánticos */
+  --color-success: #22C55E;
+  --color-success-bg: rgba(34, 197, 94, 0.1);
+  --color-warning: #F59E0B;
+  --color-warning-bg: rgba(245, 158, 11, 0.1);
+  --color-danger: #EF4444;
+  --color-danger-bg: rgba(239, 68, 68, 0.1);
+  --color-info: #7C3AED;
+  --color-info-bg: rgba(124, 58, 237, 0.1);
+
+  /* Fallbacks for potential Shadcn usage */
+  --background: var(--bg-base);
+  --foreground: var(--text-primary);
+  --card: var(--bg-card);
+  --card-foreground: var(--text-primary);
+  --popover: var(--bg-elevated);
+  --popover-foreground: var(--text-primary);
+  --primary: var(--accent-primary);
+  --primary-foreground: #FFFFFF;
+  --secondary: var(--bg-surface);
+  --secondary-foreground: var(--text-secondary);
+  --muted: var(--bg-input);
+  --muted-foreground: var(--text-muted);
+  --accent: var(--bg-elevated);
+  --accent-foreground: var(--text-primary);
+  --destructive: var(--color-danger);
+  --border: var(--border-default);
+  --input: var(--bg-input);
+  --ring: var(--accent-primary);
+  --radius: 8px;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-input: var(--border-default);
+  --color-ring: var(--ring);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* Sidebar */
+.sidebar {
+  width: 240px;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border-subtle);
+  border-top: 3px solid var(--accent-primary);
+}
+
+.sidebar-logo {
+  font-family: var(--font-display);
+  font-size: 28px;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+}
+
+.nav-item {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 10px 16px;
+  border-radius: 6px;
+  transition: all 0.15s ease;
+}
+
+.nav-item:hover, .nav-item.active {
+  color: var(--text-primary);
+  background: rgba(124, 58, 237, 0.15);
+  border-left: 2px solid var(--accent-primary);
+}
+
+/* Metric Card */
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 20px 24px;
+  position: relative;
+  overflow: hidden;
+}
+
+.metric-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, var(--accent-primary), transparent);
+}
+
+.metric-value {
+  font-family: var(--font-display);
+  font-size: 42px;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.metric-label {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Buttons */
+.btn-primary {
+  background: var(--accent-primary);
+  color: white;
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover {
+  background: var(--accent-primary-hover);
+  box-shadow: 0 0 20px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-default);
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-ghost:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary-light);
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+thead th {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-default);
+  text-align: left;
+}
+
+tbody td {
+  font-family: var(--font-body);
+  font-size: 14px;
+  color: var(--text-primary);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+tbody tr:hover {
+  background: var(--bg-elevated);
+}
+
+/* Badges */
+.badge-disponible {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.badge-vendido {
+  background: rgba(82, 82, 82, 0.15);
+  color: var(--text-muted);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle);
+}
+
+.badge-pendiente {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+.badge-pagado {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+/* Inputs y Formularios */
+input, select, textarea {
+  background: var(--bg-input);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+input:focus, select:focus {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+label {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  display: block;
+}
+
+/* POS Module */
+.pos-search {
+  background: var(--bg-elevated);
+  border: 2px solid var(--border-default);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.pos-search:focus-within {
+  border-color: var(--accent-primary);
+}
+
+.product-result-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.product-result-item:hover {
+  background: rgba(124, 58, 237, 0.1);
+  border-left: 2px solid var(--accent-primary);
+}
+
+.product-code {
+  font-family: var(--font-display);
+  font-size: 18px;
+  color: var(--accent-primary-light);
+}
+
+.product-price {
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--color-success);
+}
+
+.cart-total {
+  font-family: var(--font-display);
+  font-size: 48px;
+  color: var(--text-primary);
+}
+
+.cart-total-label {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.btn-confirm-sale {
+  width: 100%;
+  padding: 18px;
+  font-family: var(--font-display);
+  font-size: 24px;
+  letter-spacing: 0.08em;
+  background: var(--accent-primary);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-confirm-sale:hover {
+  background: var(--accent-primary-hover);
+  box-shadow: 0 0 40px var(--accent-glow);
+  transform: translateY(-2px);
+}
+
+/* Cierre de Caja */
+.cierre-stat-value {
+  font-family: var(--font-display);
+  font-size: 48px;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.cierre-stat-neto {
+  font-family: var(--font-display);
+  font-size: 80px;
+  line-height: 1;
+  color: var(--color-success);
+}
+
+/* Page module headers */
+.page-title {
+  font-family: var(--font-display);
+  font-size: 52px;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.page-subtitle {
+  font-family: var(--font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+
+/* Section headings inside modules */
+.section-title {
+  font-family: var(--font-display);
+  font-size: 22px;
+  letter-spacing: 0.06em;
+  color: var(--text-primary);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-surface); }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-primary); }
+
+@layer base {
+  body {
+    background-color: var(--bg-base);
+    color: var(--text-primary);
+    font-family: var(--font-body);
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
 }

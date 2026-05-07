@@ -1,65 +1,201 @@
-import Image from "next/image";
+import { supabase } from '@/lib/supabase'
+import { Package, TrendingUp, Banknote, Clock } from 'lucide-react'
+import { formatCurrency, formatDateTime } from '@/lib/format'
+import Link from 'next/link'
 
-export default function Home() {
+export const dynamic = 'force-dynamic'
+
+export default async function DashboardPage() {
+  const hoy = new Date().toISOString().split('T')[0]
+  const inicioHoy = `${hoy}T00:00:00.000Z`
+  const finHoy = `${hoy}T23:59:59.999Z`
+
+  const [
+    { count: stockDisponible },
+    { data: ventasHoy },
+    { data: pagosPendientes },
+    { data: ultimasVentas },
+  ] = await Promise.all([
+    supabase.from('productos').select('*', { count: 'exact', head: true }).eq('estado', 'disponible'),
+    supabase.from('ventas').select('total_venta').gte('fecha', inicioHoy).lte('fecha', finHoy),
+    supabase.from('pagos_proveedores').select('monto').eq('estado', 'pendiente'),
+    supabase
+      .from('ventas')
+      .select(`
+        id, fecha, metodo_pago, total_venta,
+        venta_productos(
+          id,
+          productos(codigo, descripcion)
+        )
+      `)
+      .order('fecha', { ascending: false })
+      .limit(5),
+  ])
+
+  const ventasHoyTyped = ventasHoy as { total_venta: number }[] | null
+  const pagosPendientesTyped = pagosPendientes as { monto: number }[] | null
+  const cantidadVentasHoy = ventasHoyTyped?.length ?? 0
+  const montoVentasHoy = ventasHoyTyped?.reduce((sum, v) => sum + v.total_venta, 0) ?? 0
+  const totalPendiente = pagosPendientesTyped?.reduce((sum, p) => sum + p.monto, 0) ?? 0
+
+  const kpis = [
+    {
+      label: 'Prendas en stock',
+      value: String(stockDisponible ?? 0),
+      icon: Package,
+      color: 'text-[var(--color-info)]',
+      href: '/productos',
+    },
+    {
+      label: 'Ventas del día',
+      value: formatCurrency(montoVentasHoy),
+      sub: `${cantidadVentasHoy} venta${cantidadVentasHoy !== 1 ? 's' : ''}`,
+      icon: TrendingUp,
+      color: 'text-[var(--color-success)]',
+      href: '/cierre',
+    },
+    {
+      label: 'Pagos pendientes',
+      value: formatCurrency(totalPendiente),
+      icon: Banknote,
+      color: 'text-[var(--color-warning)]',
+      href: '/pagos',
+    },
+  ]
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+    <div>
+      <div className="mb-10">
+        <h1
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: '56px',
+            letterSpacing: '0.03em',
+            lineHeight: 1,
+            color: 'var(--text-primary)',
+          }}
+        >
+          DASHBOARD
+        </h1>
+        <p
+          style={{
+            fontFamily: 'var(--font-heading)',
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: 'var(--text-muted)',
+            marginTop: '6px',
+          }}
+        >
+          Resumen del negocio
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
+        {kpis.map((kpi) => (
+          <Link
+            key={kpi.label}
+            href={kpi.href}
+            className="metric-card block hover:translate-y-[-2px] transition-all duration-150"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+            <div className="flex items-start justify-between mb-4">
+              <p className="metric-label">{kpi.label}</p>
+              <kpi.icon size={18} className={kpi.color} />
+            </div>
+            <p
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: '48px',
+                lineHeight: 1,
+                color: 'var(--text-primary)',
+              }}
+            >
+              {kpi.value}
+            </p>
+            {kpi.sub && (
+              <p
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginTop: '6px',
+                }}
+              >
+                {kpi.sub}
+              </p>
+            )}
+          </Link>
+        ))}
+      </div>
+
+      <div>
+        <div className="flex items-center gap-3 mb-5">
+          <div
+            className="w-1 h-5 rounded-full flex-shrink-0"
+            style={{ background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-secondary))' }}
+          />
+          <h3
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: '22px',
+              letterSpacing: '0.06em',
+              color: 'var(--text-primary)',
+            }}
           >
-            Documentation
-          </a>
+            ÚLTIMAS VENTAS
+          </h3>
         </div>
-      </main>
+
+        {!ultimasVentas || ultimasVentas.length === 0 ? (
+          <div className="rounded-lg border border-[var(--border-subtle)] py-12 text-center text-[var(--text-muted)] bg-[var(--bg-card)]">
+            No hay ventas registradas aún
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {(ultimasVentas as unknown as {
+              id: string
+              fecha: string
+              metodo_pago: string
+              total_venta: number
+              venta_productos: { id: string; productos: { codigo: string; descripcion: string } | null }[]
+            }[]).map((v) => {
+              const prods = v.venta_productos
+              return (
+                <Link
+                  key={v.id}
+                  href={`/ventas/${v.id}`}
+                  className="rounded-lg border border-[var(--border-subtle)] bg-[var(--bg-elevated)] px-5 py-4 flex items-center justify-between hover:border-[var(--accent-primary)] hover:bg-[var(--bg-card)] transition-all duration-150 block"
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-[var(--text-secondary)] text-sm">{formatDateTime(v.fecha)}</span>
+                      <span className="text-xs bg-[var(--bg-input)] text-[var(--text-secondary)] px-2 py-0.5 rounded capitalize">
+                        {v.metodo_pago}
+                      </span>
+                    </div>
+                    <p className="text-[var(--text-secondary)] text-sm">
+                      {prods.map((vp) => vp.productos?.descripcion).filter(Boolean).join(', ')}
+                    </p>
+                  </div>
+                  <span className="font-display text-2xl text-[var(--color-success)] tracking-wide">
+                    {formatCurrency(v.total_venta)}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+        )}
+
+        <div className="mt-4 text-center">
+          <Link href="/cierre" className="font-heading text-[13px] font-bold tracking-widest uppercase text-[var(--text-muted)] hover:text-[var(--accent-primary)] transition-colors">
+            Ver cierre de caja completo →
+          </Link>
+        </div>
+      </div>
     </div>
-  );
+  )
 }

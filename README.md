@@ -17,21 +17,6 @@ Aplicación web para gestionar stock, ventas, pagos a proveedores y gastos de un
 npm install
 ```
 
-### 2. Crear el proyecto en Supabase
-
-1. Ir a [supabase.com](https://supabase.com) y crear un nuevo proyecto
-2. En **SQL Editor** de Supabase, ejecutar el contenido de `supabase/schema.sql`
-
-### 3. Configurar variables de entorno
-
-Editar `.env.local` con los valores de tu proyecto:
-
-```
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGci...
-```
-
-Los valores están en: **Supabase → Project Settings → API**
 
 ### 4. Levantar el servidor
 

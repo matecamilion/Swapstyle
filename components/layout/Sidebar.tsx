@@ -10,7 +10,6 @@ import {
   Banknote,
   Receipt,
   Calculator,
-  BarChart2,
   ArrowLeftRight,
   LogOut,
 } from 'lucide-react'
@@ -24,7 +23,6 @@ const navItems = [
   { href: '/pagos', label: 'Pagos', icon: Banknote },
   { href: '/gastos', label: 'Gastos', icon: Receipt },
   { href: '/cierre', label: 'Cierre de Caja', icon: Calculator },
-  { href: '/metricas', label: 'Métricas', icon: BarChart2 },
 ]
 
 export function Sidebar() {

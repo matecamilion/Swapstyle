@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { Check, Search } from 'lucide-react'
+import { Check, Search, Download } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import {
@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatCurrency, formatDate } from '@/lib/format'
+import { exportToExcel, fmtDateExcel } from '@/lib/exportExcel'
 import type { PagoConDetalles, Proveedor } from '@/types/database'
 
 interface Props {
@@ -27,6 +28,7 @@ export function PagosClient({ pagos: initialPagos }: Props) {
   const [pagos, setPagos] = useState(initialPagos)
   const [search, setSearch] = useState('')
   const [markingIds, setMarkingIds] = useState<Set<string>>(new Set())
+  const [activeTab, setActiveTab] = useState('pendientes')
 
   async function marcarPagado(id: string) {
     setMarkingIds((prev) => new Set(prev).add(id))
@@ -118,6 +120,31 @@ export function PagosClient({ pagos: initialPagos }: Props) {
 
   const totalPendiente = pendientes.reduce((sum, p) => sum + p.monto, 0)
 
+  async function exportPagos() {
+    const listaExport = activeTab === 'pendientes' ? pendientes : activeTab === 'pagados' ? pagados : todos
+    if (listaExport.length === 0) return
+
+    const rows = listaExport.map((p) => ({
+      'Proveedor': p.proveedores?.nombre ?? '—',
+      'Código Producto': p.productos?.codigo ?? '—',
+      'Producto': p.productos?.descripcion ?? '—',
+      'Monto': p.monto,
+      'Fecha Venta': fmtDateExcel(p.fecha_venta),
+      'Estado': p.estado === 'pendiente' ? 'Pendiente' : 'Pagado',
+      'Fecha Pago': p.fecha_pago ? fmtDateExcel(p.fecha_pago) : '—',
+    }))
+
+    const hoyStr = new Date().toISOString().split('T')[0]
+    const hoyExport = fmtDateExcel(new Date().toISOString())
+    await exportToExcel(rows, `pagos_proveedores_${hoyStr}`, {
+      title: 'PAGOS A PROVEEDORES',
+      subtitle: `Exportado el ${hoyExport}`,
+      sheetName: 'Pagos',
+      moneyColumns: ['Monto'],
+      statusColumn: 'Estado',
+    })
+  }
+
   function PagoRow({ pago, showAction }: { pago: PagoConDetalles; showAction: boolean }) {
     return (
       <TableRow>
@@ -192,8 +219,8 @@ export function PagosClient({ pagos: initialPagos }: Props) {
 
   return (
     <>
-      <div className="mb-6">
-        <div className="relative max-w-md">
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="relative max-w-md flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)] pointer-events-none" />
           <Input
             placeholder="Buscar por proveedor, código o producto..."
@@ -202,12 +229,16 @@ export function PagosClient({ pagos: initialPagos }: Props) {
             className="pl-9"
           />
         </div>
+        <button onClick={exportPagos} className="btn-ghost text-xs p-2 px-4 inline-flex items-center gap-2 flex-shrink-0">
+          <Download size={14} />
+          Exportar Excel
+        </button>
       </div>
 
-      <Tabs defaultValue="pendientes">
+      <Tabs defaultValue="pendientes" onValueChange={setActiveTab}>
         <div className="flex items-center justify-between mb-4">
           <TabsList>
-            <TabsTrigger value="pendientes">
+            <TabsTrigger value="pendientes" onClick={() => setActiveTab('pendientes')}>
               Pendientes ({pendientes.length})
             </TabsTrigger>
             <TabsTrigger value="pagados">

@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase'
-import { Package, TrendingUp, Banknote, Clock } from 'lucide-react'
+import { Package, TrendingUp, Banknote } from 'lucide-react'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 import Link from 'next/link'
+import { DashboardCharts } from './DashboardCharts'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,6 +16,10 @@ export default async function DashboardPage() {
     { data: ventasHoy },
     { data: pagosPendientes },
     { data: ultimasVentas },
+    { data: ventas },
+    { data: ventaProductos },
+    { data: productos },
+    { data: gastos },
   ] = await Promise.all([
     supabase.from('productos').select('*', { count: 'exact', head: true }).eq('estado', 'disponible'),
     supabase.from('ventas').select('total_venta').gte('fecha', inicioHoy).lte('fecha', finHoy),
@@ -30,6 +35,11 @@ export default async function DashboardPage() {
       `)
       .order('fecha', { ascending: false })
       .limit(5),
+    // Métricas data
+    supabase.from('ventas').select('id, fecha, total_venta, ganancia_negocio, total_proveedores, metodo_pago').order('fecha', { ascending: true }),
+    supabase.from('venta_productos').select('venta_id, precio_venta_momento, productos(categoria, proveedor_id, proveedores(nombre))'),
+    supabase.from('productos').select('id, estado, categoria'),
+    supabase.from('gastos').select('monto, fecha, categoria'),
   ])
 
   const ventasHoyTyped = ventasHoy as { total_venta: number }[] | null
@@ -92,6 +102,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
+      {/* BLOQUE 1 — Resumen del día */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-12">
         {kpis.map((kpi) => (
           <Link
@@ -132,6 +143,17 @@ export default async function DashboardPage() {
         ))}
       </div>
 
+      {/* BLOQUE 2 + 3 — Resumen global + Gráficos */}
+      <div className="mb-12">
+        <DashboardCharts
+          ventas={(ventas ?? []) as any[]}
+          ventaProductos={(ventaProductos ?? []) as any[]}
+          productos={(productos ?? []) as any[]}
+          gastos={(gastos ?? []) as any[]}
+        />
+      </div>
+
+      {/* BLOQUE 4 — Últimas ventas */}
       <div>
         <div className="flex items-center gap-3 mb-5">
           <div

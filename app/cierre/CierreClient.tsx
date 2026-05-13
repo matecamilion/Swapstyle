@@ -4,7 +4,9 @@ import { useState, useCallback } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Input } from '@/components/ui/input'
+import { Download } from 'lucide-react'
 import { formatCurrency, formatDateTime } from '@/lib/format'
+import { exportToExcel, fmtDateExcel } from '@/lib/exportExcel'
 import type { Venta, VentaProducto, Producto } from '@/types/database'
 
 type VentaConDetalles = Venta & {
@@ -175,6 +177,38 @@ export function CierreClient() {
 
       {consultado && (
         <>
+          {/* Export button */}
+          <div className="flex justify-end">
+            <button
+              onClick={async () => {
+                const hoyExport = fmtDateExcel(new Date().toISOString())
+                const rows: Record<string, string | number | null | undefined>[] = [
+                  { 'Concepto': 'Total vendido (bruto)', 'Valor': totalBruto },
+                  { 'Concepto': 'Corresponde a proveedores', 'Valor': totalProveedores },
+                  { 'Concepto': 'Ingreso neto Swapstyle', 'Valor': gananciaNeta },
+                  { 'Concepto': 'Total de gastos', 'Valor': totalGastos },
+                  { 'Concepto': 'Resultado neto', 'Valor': gananciaReal },
+                  { 'Concepto': 'DESGLOSE POR MÉTODO DE PAGO', 'Valor': '' },
+                  { 'Concepto': 'Efectivo', 'Valor': porMetodo['efectivo'] ?? 0 },
+                  { 'Concepto': 'Transferencia', 'Valor': porMetodo['transferencia'] ?? 0 },
+                  { 'Concepto': 'Tarjeta', 'Valor': porMetodo['tarjeta'] ?? 0 },
+                ]
+                await exportToExcel(rows, `cierre_caja_${fechaDesde}_${fechaHasta}`, {
+                  title: 'CIERRE DE CAJA',
+                  subtitle: `Período: ${fmtDateExcel(fechaDesde)} al ${fmtDateExcel(fechaHasta)} — Exportado el ${hoyExport}`,
+                  sheetName: 'Cierre de Caja',
+                  moneyColumns: ['Valor'],
+                  sectionRows: [5],
+                  totalRows: [4],
+                })
+              }}
+              className="btn-ghost text-xs p-2 px-4 inline-flex items-center gap-2"
+            >
+              <Download size={14} />
+              Exportar Excel
+            </button>
+          </div>
+
           {/* Resumen financiero */}
           <div>
             <h3 className="font-heading text-lg tracking-widest uppercase text-[var(--text-primary)] mb-4">Resumen financiero</h3>

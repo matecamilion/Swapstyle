@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatCurrency, formatDateTime } from '@/lib/format'
 import Link from 'next/link'
 import { ArrowLeft, Package, CreditCard, Calendar, Hash } from 'lucide-react'
+import { ExportVentaButton } from './ExportVentaButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -66,8 +67,29 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
           <ArrowLeft size={14} />
           Volver al dashboard
         </Link>
-        <h1 className="page-title">Detalle de venta</h1>
-        <p className="page-subtitle">#{codigoCorto}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="page-title">Detalle de venta</h1>
+            <p className="page-subtitle">#{codigoCorto}</p>
+          </div>
+          <ExportVentaButton
+            codigoCorto={codigoCorto}
+            fecha={venta.fecha}
+            metodoPago={venta.metodo_pago}
+            totalVenta={venta.total_venta}
+            gananciaNegocio={venta.ganancia_negocio}
+            totalProveedores={venta.total_proveedores}
+            items={venta.venta_productos.map((vp) => ({
+              precio_venta_momento: vp.precio_venta_momento,
+              precio_proveedor_momento: vp.precio_proveedor_momento,
+              productos: vp.productos ? {
+                codigo: vp.productos.codigo,
+                descripcion: vp.productos.descripcion,
+                proveedores: vp.productos.proveedores,
+              } : null,
+            }))}
+          />
+        </div>
       </div>
 
       {/* Resumen superior */}

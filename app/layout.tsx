@@ -3,6 +3,7 @@ import { Bebas_Neue, Barlow, Barlow_Condensed } from 'next/font/google'
 import './globals.css'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Toaster } from '@/components/ui/sonner'
+import { AIChatWidget } from '@/components/chat/AIChatWidget'
 import { getSession } from '@/lib/session'
 
 // next/font injects @font-face rules and sets CSS variables on <html>
@@ -47,6 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           {children}
         </main>
         <Toaster richColors position="top-right" />
+        {authenticated && <AIChatWidget />}
       </body>
     </html>
   )

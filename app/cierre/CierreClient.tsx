@@ -115,7 +115,12 @@ export function CierreClient() {
   const totalGastos = gastos.reduce((sum, g) => sum + g.monto, 0)
   const gananciaReal = gananciaNeta - totalGastos
   const porMetodo = ventas.reduce<Record<string, number>>((acc, v) => {
-    acc[v.metodo_pago] = (acc[v.metodo_pago] ?? 0) + v.total_venta
+    if (v.metodo_pago === 'mixto') {
+      acc['efectivo'] = (acc['efectivo'] ?? 0) + (v.monto_efectivo ?? 0)
+      acc['transferencia'] = (acc['transferencia'] ?? 0) + (v.monto_transferencia ?? 0)
+    } else {
+      acc[v.metodo_pago] = (acc[v.metodo_pago] ?? 0) + v.total_venta
+    }
     return acc
   }, {})
 

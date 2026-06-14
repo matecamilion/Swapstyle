@@ -8,7 +8,12 @@ import { formatCurrency } from '@/lib/format'
 import { confirmarVenta } from './actions'
 import type { ProductoConProveedor } from '@/types/database'
 
-type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta'
+type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto'
+
+type CarritoItem = ProductoConProveedor & {
+  precio_venta_momento: number
+  precio_proveedor_momento: number
+}
 
 interface Props {
   productos: ProductoConProveedor[]
@@ -18,8 +23,10 @@ export function POSClient({ productos: allProductos }: Props) {
   const router = useRouter()
   const [disponibles, setDisponibles] = useState(allProductos)
   const [search, setSearch] = useState('')
-  const [carrito, setCarrito] = useState<ProductoConProveedor[]>([])
+  const [carrito, setCarrito] = useState<CarritoItem[]>([])
   const [metodoPago, setMetodoPago] = useState<MetodoPago>('efectivo')
+  const [montoEfectivo, setMontoEfectivo] = useState(0)
+  const [montoTransferencia, setMontoTransferencia] = useState(0)
   const [loading, setLoading] = useState(false)
   const [ventaConfirmada, setVentaConfirmada] = useState<{
     total: number
@@ -43,7 +50,14 @@ export function POSClient({ productos: allProductos }: Props) {
       toast.error('Este producto ya está en el carrito')
       return
     }
-    setCarrito((prev) => [...prev, producto])
+    setCarrito((prev) => [
+      ...prev,
+      {
+        ...producto,
+        precio_venta_momento: producto.precio_venta,
+        precio_proveedor_momento: producto.precio_proveedor,
+      },
+    ])
     setSearch('')
     searchRef.current?.focus()
   }
@@ -52,8 +66,18 @@ export function POSClient({ productos: allProductos }: Props) {
     setCarrito((prev) => prev.filter((p) => p.id !== id))
   }
 
-  const totalVenta = carrito.reduce((sum, p) => sum + p.precio_venta, 0)
-  const totalProveedor = carrito.reduce((sum, p) => sum + p.precio_proveedor, 0)
+  function actualizarPrecio(
+    id: string,
+    campo: 'precio_venta_momento' | 'precio_proveedor_momento',
+    valor: number,
+  ) {
+    setCarrito((prev) =>
+      prev.map((p) => (p.id === id ? { ...p, [campo]: valor } : p)),
+    )
+  }
+
+  const totalVenta = carrito.reduce((sum, p) => sum + p.precio_venta_momento, 0)
+  const totalProveedor = carrito.reduce((sum, p) => sum + p.precio_proveedor_momento, 0)
   const ganancia = totalVenta - totalProveedor
 
   async function handleConfirmar() {
@@ -62,19 +86,29 @@ export function POSClient({ productos: allProductos }: Props) {
       return
     }
 
+    if (metodoPago === 'mixto') {
+      const sumaMixto = montoEfectivo + montoTransferencia
+      if (Math.abs(sumaMixto - totalVenta) > 0.01) {
+        toast.error('Los montos no suman el total de la venta')
+        return
+      }
+    }
+
     setLoading(true)
     try {
       await confirmarVenta({
         productos: carrito.map((p) => ({
           id: p.id,
-          precio_venta: p.precio_venta,
-          precio_proveedor: p.precio_proveedor,
+          precio_venta: p.precio_venta_momento,
+          precio_proveedor: p.precio_proveedor_momento,
           proveedor_id: p.proveedor_id,
         })),
         metodo_pago: metodoPago,
         total_venta: totalVenta,
         ganancia_negocio: ganancia,
         total_proveedores: totalProveedor,
+        monto_efectivo: metodoPago === 'mixto' ? montoEfectivo : null,
+        monto_transferencia: metodoPago === 'mixto' ? montoTransferencia : null,
       })
 
       setVentaConfirmada({
@@ -89,6 +123,8 @@ export function POSClient({ productos: allProductos }: Props) {
       setDisponibles((prev) => prev.filter((p) => !vendidosIds.has(p.id)))
       setCarrito([])
       setMetodoPago('efectivo')
+      setMontoEfectivo(0)
+      setMontoTransferencia(0)
       router.refresh()
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error al confirmar la venta'
@@ -208,16 +244,47 @@ export function POSClient({ productos: allProductos }: Props) {
           ) : (
             <div className="divide-y divide-[var(--border-subtle)]">
               {carrito.map((p) => (
-                <div key={p.id} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--bg-elevated)] transition-colors">
+                <div key={p.id} className="flex items-start justify-between px-5 py-3 hover:bg-[var(--bg-elevated)] transition-colors gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="font-heading text-[12px] uppercase tracking-wider text-[var(--accent-primary-light)] font-bold">{p.codigo}</p>
                     <p className="text-[var(--text-primary)] text-sm truncate">{p.descripcion}</p>
                   </div>
-                  <div className="flex items-center gap-3 ml-4">
-                    <span className="font-display text-xl tracking-wide text-[var(--text-primary)]">{formatCurrency(p.precio_venta)}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-col gap-1 items-end">
+                      <div className="flex items-center gap-1">
+                        <span className="font-heading text-[9px] uppercase tracking-widest text-[var(--text-muted)] font-bold">Venta</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.precio_venta_momento}
+                          onChange={(e) => actualizarPrecio(p.id, 'precio_venta_momento', parseFloat(e.target.value) || 0)}
+                          className="w-24 text-right font-display text-base tracking-wide text-[var(--text-primary)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded px-2 py-0.5 focus:outline-none focus:border-[var(--accent-primary)]"
+                        />
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <span className="font-heading text-[9px] uppercase tracking-widest text-[var(--text-muted)] font-bold">Prov.</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={p.precio_proveedor_momento}
+                          onChange={(e) => actualizarPrecio(p.id, 'precio_proveedor_momento', parseFloat(e.target.value) || 0)}
+                          className="w-24 text-right font-display text-base tracking-wide text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded px-2 py-0.5 focus:outline-none focus:border-[var(--accent-primary)]"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => actualizarPrecio(p.id, 'precio_proveedor_momento', Math.round(p.precio_venta_momento * 0.7))}
+                        className="btn-ghost text-xs py-1.5 w-full"
+                      >
+                        70% prov / 30% swap
+                        <span className="ml-1.5 text-[var(--accent-primary-light)]">
+                          → {formatCurrency(Math.round(p.precio_venta_momento * 0.7))}
+                        </span>
+                      </button>
+                    </div>
                     <button
                       onClick={() => quitarDelCarrito(p.id)}
-                      className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors"
+                      className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors mt-1"
                     >
                       <X size={16} />
                     </button>
@@ -242,10 +309,10 @@ export function POSClient({ productos: allProductos }: Props) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-2">
               <label>Método de pago</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['efectivo', 'transferencia', 'tarjeta'] as const).map((m) => (
+              <div className="grid grid-cols-2 gap-2">
+                {(['efectivo', 'transferencia', 'tarjeta', 'mixto'] as const).map((m) => (
                   <button
                     key={m}
                     type="button"
@@ -275,6 +342,34 @@ export function POSClient({ productos: allProductos }: Props) {
                   </button>
                 ))}
               </div>
+
+              {metodoPago === 'mixto' && (
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-heading text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)] w-28 shrink-0">Efectivo</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={montoEfectivo}
+                      onChange={(e) => setMontoEfectivo(parseFloat(e.target.value) || 0)}
+                      className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded px-2 py-1.5 text-right font-display text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-heading text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)] w-28 shrink-0">Transferencia</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={montoTransferencia}
+                      onChange={(e) => setMontoTransferencia(parseFloat(e.target.value) || 0)}
+                      className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded px-2 py-1.5 text-right font-display text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
+                    />
+                  </div>
+                  <p className={`font-heading text-[10px] uppercase tracking-widest font-bold text-right ${Math.abs(montoEfectivo + montoTransferencia - totalVenta) < 0.01 ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'}`}>
+                    Resta: {formatCurrency(totalVenta - montoEfectivo - montoTransferencia)}
+                  </p>
+                </div>
+              )}
             </div>
 
             <button

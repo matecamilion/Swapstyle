@@ -26,10 +26,12 @@ export type ProductoConProveedor = Producto & {
 export type Venta = {
   id: string
   fecha: string
-  metodo_pago: 'efectivo' | 'transferencia' | 'tarjeta'
+  metodo_pago: 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto'
   total_venta: number
   ganancia_negocio: number
   total_proveedores: number
+  monto_efectivo: number | null
+  monto_transferencia: number | null
   created_at: string
 }
 

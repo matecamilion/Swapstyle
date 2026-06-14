@@ -4,6 +4,7 @@ import { formatCurrency, formatDateTime } from '@/lib/format'
 import Link from 'next/link'
 import { ArrowLeft, Package, CreditCard, Calendar, Hash } from 'lucide-react'
 import { ExportVentaButton } from './ExportVentaButton'
+import { PrendasVendidasTable } from './PrendasVendidasTable'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +17,7 @@ type VentaDetalle = {
   total_proveedores: number
   venta_productos: {
     id: string
+    producto_id: string
     precio_venta_momento: number
     precio_proveedor_momento: number
     productos: {
@@ -25,7 +27,7 @@ type VentaDetalle = {
       proveedores: { nombre: string } | null
     } | null
   }[]
-  pagos_proveedores: { estado: string }[]
+  pagos_proveedores: { estado: string; producto_id: string }[]
 }
 
 export default async function VentaDetallePage({ params }: { params: Promise<{ id: string }> }) {
@@ -36,10 +38,10 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
     .select(`
       id, fecha, metodo_pago, total_venta, ganancia_negocio, total_proveedores,
       venta_productos(
-        id, precio_venta_momento, precio_proveedor_momento,
+        id, producto_id, precio_venta_momento, precio_proveedor_momento,
         productos(codigo, descripcion, categoria, proveedores(nombre))
       ),
-      pagos_proveedores(estado)
+      pagos_proveedores(estado, producto_id)
     `)
     .eq('id', id)
     .single()
@@ -49,6 +51,10 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
   const venta = data as unknown as VentaDetalle
   const codigoCorto = venta.id.slice(0, 8).toUpperCase()
 
+  const pagoMap = new Map<string, 'pendiente' | 'pagado'>(
+    venta.pagos_proveedores.map((p) => [p.producto_id, p.estado as 'pendiente' | 'pagado'])
+  )
+
   const estadoPago = venta.pagos_proveedores.length === 0
     ? null
     : venta.pagos_proveedores.every((p) => p.estado === 'pagado')
@@ -56,6 +62,11 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
       : venta.pagos_proveedores.some((p) => p.estado === 'pagado')
         ? 'parcial'
         : 'pendiente'
+
+  const itemsTabla = venta.venta_productos.map((vp) => ({
+    ...vp,
+    estado_pago: pagoMap.get(vp.producto_id) ?? null,
+  }))
 
   return (
     <div className="max-w-3xl">
@@ -130,40 +141,7 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
           <div className="w-1 h-5 rounded-full flex-shrink-0" style={{ background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-secondary))' }} />
           <h3 className="section-title">Prendas vendidas</h3>
         </div>
-        <div className="rounded-xl border border-[var(--border-subtle)] overflow-hidden">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[var(--border-subtle)]">
-                <th className="text-left px-4 py-3">Código</th>
-                <th className="text-left px-4 py-3">Prenda</th>
-                <th className="text-left px-4 py-3 hidden sm:table-cell">Categoría</th>
-                <th className="text-left px-4 py-3 hidden sm:table-cell">Proveedor</th>
-                <th className="text-right px-4 py-3">Precio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {venta.venta_productos.map((vp) => (
-                <tr key={vp.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-elevated)]">
-                  <td className="px-4 py-3 font-heading text-[12px] uppercase tracking-wider text-[var(--accent-primary-light)] font-bold">
-                    {vp.productos?.codigo ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-primary)]">
-                    {vp.productos?.descripcion ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)] hidden sm:table-cell">
-                    {vp.productos?.categoria ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-[var(--text-secondary)] hidden sm:table-cell">
-                    {vp.productos?.proveedores?.nombre ?? '—'}
-                  </td>
-                  <td className="px-4 py-3 text-right font-bold text-[var(--text-primary)]">
-                    {formatCurrency(vp.precio_venta_momento)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <PrendasVendidasTable ventaId={venta.id} items={itemsTabla} />
       </div>
 
       {/* Totales */}
@@ -177,7 +155,7 @@ export default async function VentaDetallePage({ params }: { params: Promise<{ i
             <div className="flex justify-between text-sm">
               <span className="font-heading uppercase tracking-widest text-[11px] font-bold text-[var(--text-muted)]">Estado de pago a proveedores</span>
               <span className={`font-heading font-bold text-[11px] uppercase tracking-wide px-2 py-0.5 rounded ${
-                estadoPago === 'pagado' ? 'badge-pagado' : estadoPago === 'parcial' ? 'badge-pendiente' : 'badge-pendiente'
+                estadoPago === 'pagado' ? 'badge-pagado' : 'badge-pendiente'
               }`}>
                 {estadoPago === 'parcial' ? 'Parcial' : estadoPago}
               </span>

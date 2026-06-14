@@ -11,14 +11,16 @@ interface ProductoVenta {
 
 interface ConfirmarVentaInput {
   productos: ProductoVenta[]
-  metodo_pago: 'efectivo' | 'transferencia' | 'tarjeta'
+  metodo_pago: 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto'
   total_venta: number
   ganancia_negocio: number
   total_proveedores: number
+  monto_efectivo?: number | null
+  monto_transferencia?: number | null
 }
 
 export async function confirmarVenta(input: ConfirmarVentaInput): Promise<void> {
-  const { productos, metodo_pago, total_venta, ganancia_negocio, total_proveedores } = input
+  const { productos, metodo_pago, total_venta, ganancia_negocio, total_proveedores, monto_efectivo, monto_transferencia } = input
 
   // Verify all products are still available before proceeding
   const { data: estadoActual, error: checkError } = await supabase
@@ -42,6 +44,8 @@ export async function confirmarVenta(input: ConfirmarVentaInput): Promise<void> 
       total_venta,
       ganancia_negocio,
       total_proveedores,
+      monto_efectivo: monto_efectivo ?? null,
+      monto_transferencia: monto_transferencia ?? null,
       fecha: new Date().toISOString(),
     })
     .select()

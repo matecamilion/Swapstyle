@@ -102,12 +102,13 @@ export function ProveedorDetalleClient({ productos, pagos }: Props) {
                   <th className="text-left px-4 py-3">Descripción</th>
                   <th className="text-left px-4 py-3 hidden sm:table-cell">Categoría</th>
                   <th className="text-right px-4 py-3">P. Venta</th>
+                  <th className="text-right px-4 py-3 hidden sm:table-cell">P. Proveedor</th>
                   <th className="text-center px-4 py-3">Estado</th>
                 </tr>
               </thead>
               <tbody>
                 {filtrados.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center text-[var(--text-muted)] py-12">Sin prendas</td></tr>
+                  <tr><td colSpan={6} className="text-center text-[var(--text-muted)] py-12">Sin prendas</td></tr>
                 ) : (
                   filtrados.map((p) => (
                     <tr key={p.id} className="border-b border-[var(--border-subtle)] last:border-0 hover:bg-[var(--bg-elevated)]">
@@ -115,6 +116,7 @@ export function ProveedorDetalleClient({ productos, pagos }: Props) {
                       <td className="px-4 py-3 text-[var(--text-primary)]">{p.descripcion}</td>
                       <td className="px-4 py-3 text-[var(--text-secondary)] hidden sm:table-cell">{p.categoria ?? '—'}</td>
                       <td className="px-4 py-3 text-right font-bold text-[var(--text-primary)]">{formatCurrency(p.precio_venta)}</td>
+                      <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden sm:table-cell">{formatCurrency(p.precio_proveedor)}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={p.estado === 'disponible' ? 'badge-disponible inline-block' : 'badge-vendido inline-block'}>
                           {p.estado}

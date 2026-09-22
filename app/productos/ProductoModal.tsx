@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import { Plus, X } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { crearPrendas } from './actions'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -23,6 +25,10 @@ import { formatCurrency } from '@/lib/format'
 
 const CATEGORIAS = ['Remeras', 'Pantalones', 'Zapatillas', 'Accesorios', 'Sueter', 'Buzos', 'Camperas', 'Otro']
 const PORCENTAJE_PROVEEDOR = 0.7
+const PRESET_LETRAS = ['S', 'M', 'L', 'XL']
+const PRESET_NUMEROS = ['38', '40', '42', '44', '46']
+
+type FilaTalle = { talle: string; cantidad: string }
 
 interface Props {
   open: boolean
@@ -30,27 +36,39 @@ interface Props {
   proveedores: Pick<Proveedor, 'id' | 'nombre'>[]
   existingCodigos: string[]
   onClose: () => void
-  onSaved: (p: ProductoConProveedor) => void
+  onSaved: (productos: ProductoConProveedor[]) => void
 }
 
-function nextCodigo(existingCodigos: string[]): string {
+function nextNumero(existingCodigos: string[]): number {
   const nums = existingCodigos
     .map((c) => { const m = c.match(/^SW-(\d+)$/); return m ? parseInt(m[1], 10) : 0 })
     .filter((n) => n > 0)
   const next = nums.length > 0 ? Math.max(...nums) + 1 : 1
   if (next > 999999) throw new Error('Se alcanzó el límite máximo de códigos SW-999999')
-  return `SW-${String(next).padStart(6, '0')}`
+  return next
+}
+
+function formatCodigo(n: number): string {
+  return `SW-${String(n).padStart(6, '0')}`
+}
+
+/** Vista previa del código (o del rango). El correlativo final lo asigna el servidor. */
+function previewCodigos(existingCodigos: string[], cantidad: number): string {
+  const desde = nextNumero(existingCodigos)
+  if (cantidad <= 1) return formatCodigo(desde)
+  return `${formatCodigo(desde)} → ${formatCodigo(desde + cantidad - 1)}`
 }
 
 export function ProductoModal({ open, producto, proveedores, existingCodigos, onClose, onSaved }: Props) {
   const [form, setForm] = useState({
-    codigo: '',
     descripcion: '',
     categoria: '',
+    talle: '',
     proveedor_id: '',
     precio_venta: '',
     precio_proveedor: '',
   })
+  const [talles, setTalles] = useState<FilaTalle[]>([])
   const [proveedorSearch, setProveedorSearch] = useState('')
   const [proveedorOpen, setProveedorOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -65,9 +83,9 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
   useEffect(() => {
     if (producto) {
       setForm({
-        codigo: producto.codigo,
         descripcion: producto.descripcion,
         categoria: producto.categoria ?? '',
+        talle: producto.talle ?? '',
         proveedor_id: producto.proveedor_id ?? '',
         precio_venta: String(producto.precio_venta),
         precio_proveedor: String(producto.precio_proveedor),
@@ -75,17 +93,18 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
       setProveedorSearch(producto.proveedores?.nombre ?? '')
     } else {
       setForm({
-        codigo: nextCodigo(existingCodigos),
         descripcion: '',
         categoria: '',
+        talle: '',
         proveedor_id: '',
         precio_venta: '',
         precio_proveedor: '',
       })
       setProveedorSearch('')
     }
+    setTalles([])
     setErrors({})
-  }, [producto, open, existingCodigos])
+  }, [producto, open])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -105,6 +124,28 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     }
   }
 
+  function agregarFila(talle = '') {
+    setTalles((prev) => [...prev, { talle, cantidad: '1' }])
+  }
+
+  function agregarPreset(preset: string[]) {
+    setTalles((prev) => {
+      const yaCargados = new Set(prev.map((t) => t.talle.trim().toUpperCase()))
+      const nuevos = preset
+        .filter((t) => !yaCargados.has(t.toUpperCase()))
+        .map((t) => ({ talle: t, cantidad: '1' }))
+      return [...prev, ...nuevos]
+    })
+  }
+
+  function actualizarFila(index: number, campo: keyof FilaTalle, valor: string) {
+    setTalles((prev) => prev.map((t, i) => (i === index ? { ...t, [campo]: valor } : t)))
+  }
+
+  function quitarFila(index: number) {
+    setTalles((prev) => prev.filter((_, i) => i !== index))
+  }
+
   function validate() {
     const e: Record<string, string> = {}
     if (!form.descripcion.trim()) e.descripcion = 'La descripción es requerida'
@@ -113,6 +154,10 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     if (!form.precio_venta || isNaN(pv) || pv <= 0) e.precio_venta = 'Precio de venta inválido'
     if (!form.precio_proveedor || isNaN(pp) || pp <= 0) e.precio_proveedor = 'Precio de proveedor inválido'
     if (!isNaN(pv) && !isNaN(pp) && pp >= pv) e.precio_proveedor = 'El precio del proveedor debe ser menor al precio de venta'
+    if (!producto) {
+      if (talles.some((t) => !t.talle.trim())) e.talles = 'Completá el talle o quitá la fila'
+      else if (talles.some((t) => !(parseInt(t.cantidad, 10) >= 1))) e.talles = 'La cantidad debe ser al menos 1'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -123,7 +168,6 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     setLoading(true)
 
     const payload = {
-      codigo: form.codigo.trim().toUpperCase(),
       descripcion: form.descripcion.trim(),
       categoria: form.categoria || null,
       proveedor_id: form.proveedor_id || null,
@@ -133,13 +177,21 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
 
     try {
       if (producto) {
-        const { data, error } = await supabase.from('productos').update(payload).eq('id', producto.id).select('*, proveedores(id, nombre)').single()
+        const { data, error } = await supabase
+          .from('productos')
+          .update({ ...payload, talle: form.talle.trim() || null })
+          .eq('id', producto.id)
+          .select('*, proveedores(id, nombre)')
+          .single()
         if (error) throw error
-        onSaved(data as ProductoConProveedor)
+        onSaved([data as ProductoConProveedor])
       } else {
-        const { data, error } = await supabase.from('productos').insert({ ...payload, estado: 'disponible' }).select('*, proveedores(id, nombre)').single()
-        if (error) throw error
-        onSaved(data as ProductoConProveedor)
+        // Códigos correlativos + insert atómico del lote: todo del lado del servidor
+        const creados = await crearPrendas({
+          ...payload,
+          talles: talles.map((t) => ({ talle: t.talle, cantidad: parseInt(t.cantidad, 10) })),
+        })
+        onSaved(creados)
       }
     } catch (err: unknown) {
       toast.error(`No se pudo guardar: ${err instanceof Error ? err.message : 'Error desconocido'}`)
@@ -147,6 +199,10 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
       setLoading(false)
     }
   }
+
+  const totalUnidades = talles.length === 0
+    ? 1
+    : talles.reduce((sum, t) => sum + Math.max(parseInt(t.cantidad, 10) || 0, 0), 0)
 
   const pvNum = parseFloat(form.precio_venta)
   const ppNum = parseFloat(form.precio_proveedor)
@@ -156,7 +212,7 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="bg-[var(--bg-elevated)] border-[var(--border-strong)] text-[var(--text-primary)] max-w-lg">
+      <DialogContent className="bg-[var(--bg-elevated)] border-[var(--border-strong)] text-[var(--text-primary)] max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display text-3xl tracking-wide uppercase text-[var(--text-primary)]">
             {producto ? 'Editar prenda' : 'Nueva prenda'}
@@ -170,12 +226,18 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
               <Label htmlFor="codigo">Código</Label>
               <Input
                 id="codigo"
-                value={form.codigo}
+                value={producto ? producto.codigo : previewCodigos(existingCodigos, totalUnidades)}
                 readOnly
                 tabIndex={-1}
                 className="font-mono text-[var(--accent-primary-light)] font-bold opacity-70 cursor-default"
               />
-              <p className="text-[var(--text-muted)] text-[10px] font-heading uppercase tracking-wide">Generado automáticamente</p>
+              <p className="text-[var(--text-muted)] text-[10px] font-heading uppercase tracking-wide">
+                {producto
+                  ? 'Generado automáticamente'
+                  : totalUnidades > 1
+                    ? `Rango para ${totalUnidades} prendas`
+                    : 'Generado automáticamente'}
+              </p>
             </div>
             <div className="space-y-1">
               <Label>Categoría</Label>
@@ -204,6 +266,83 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
             />
             {errors.descripcion && <p className="text-[var(--color-danger)] text-xs">{errors.descripcion}</p>}
           </div>
+
+          {/* Talles */}
+          {producto ? (
+            <div className="space-y-1">
+              <Label htmlFor="talle">Talle</Label>
+              <Input
+                id="talle"
+                value={form.talle}
+                onChange={(e) => setForm({ ...form, talle: e.target.value })}
+                placeholder="Sin talle"
+              />
+            </div>
+          ) : (
+            <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] p-3">
+              <div className="flex items-center justify-between">
+                <Label>Talles</Label>
+                <span className="text-[10px] font-heading uppercase tracking-wide text-[var(--text-muted)]">Opcional</span>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button type="button" onClick={() => agregarPreset(PRESET_LETRAS)} className="btn-ghost text-xs px-2.5 py-1">
+                  {PRESET_LETRAS.join(' ')}
+                </button>
+                <button type="button" onClick={() => agregarPreset(PRESET_NUMEROS)} className="btn-ghost text-xs px-2.5 py-1">
+                  {PRESET_NUMEROS.join(' ')}
+                </button>
+              </div>
+
+              {talles.length > 0 && (
+                <div className="space-y-2">
+                  {talles.map((t, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Input
+                        value={t.talle}
+                        onChange={(e) => actualizarFila(i, 'talle', e.target.value)}
+                        placeholder="Talle"
+                        className="flex-1"
+                      />
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={t.cantidad}
+                        onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)}
+                        className="w-20 text-right"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => quitarFila(i)}
+                        aria-label={`Quitar talle ${t.talle || i + 1}`}
+                        className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors p-1"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => agregarFila()}
+                className="btn-ghost text-xs w-full py-1.5 flex items-center justify-center"
+              >
+                <Plus size={13} className="mr-1.5" />
+                Agregar talle
+              </button>
+
+              {errors.talles && <p className="text-[var(--color-danger)] text-xs">{errors.talles}</p>}
+
+              <p className="text-[10px] font-heading uppercase tracking-wide text-[var(--text-muted)]">
+                {talles.length === 0
+                  ? 'Sin talles: se crea 1 prenda sin talle'
+                  : `Se crearán ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''}, una por unidad`}
+              </p>
+            </div>
+          )}
 
           {/* Proveedor autocomplete */}
           <div className="space-y-1">
@@ -318,7 +457,11 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
           <div className="flex gap-3 pt-4">
             <button type="button" onClick={onClose} className="btn-ghost flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1">
-              {loading ? 'Guardando...' : 'Guardar'}
+              {loading
+                ? 'Guardando...'
+                : producto
+                  ? 'Guardar'
+                  : `Guardar ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''}`}
             </button>
           </div>
         </form>

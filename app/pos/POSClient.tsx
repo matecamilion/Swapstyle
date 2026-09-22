@@ -5,10 +5,10 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Search, X, ShoppingCart, CheckCircle } from 'lucide-react'
 import { formatCurrency } from '@/lib/format'
-import { confirmarVenta } from './actions'
+import { confirmarVenta } from '@/app/ventas/actions'
+import { PreciosMomentoFields } from '@/components/venta/PreciosMomentoFields'
+import { MetodoPagoSelector, mixtoInvalido, type MetodoPago } from '@/components/venta/MetodoPagoSelector'
 import type { ProductoConProveedor } from '@/types/database'
-
-type MetodoPago = 'efectivo' | 'transferencia' | 'tarjeta' | 'mixto'
 
 type CarritoItem = ProductoConProveedor & {
   precio_venta_momento: number
@@ -86,12 +86,9 @@ export function POSClient({ productos: allProductos }: Props) {
       return
     }
 
-    if (metodoPago === 'mixto') {
-      const sumaMixto = montoEfectivo + montoTransferencia
-      if (Math.abs(sumaMixto - totalVenta) > 0.01) {
-        toast.error('Los montos no suman el total de la venta')
-        return
-      }
+    if (mixtoInvalido(metodoPago, montoEfectivo, montoTransferencia, totalVenta)) {
+      toast.error('Los montos no suman el total de la venta')
+      return
     }
 
     setLoading(true)
@@ -250,38 +247,12 @@ export function POSClient({ productos: allProductos }: Props) {
                     <p className="text-[var(--text-primary)] text-sm truncate">{p.descripcion}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <div className="flex flex-col gap-1 items-end">
-                      <div className="flex items-center gap-1">
-                        <span className="font-heading text-[9px] uppercase tracking-widest text-[var(--text-muted)] font-bold">Venta</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={p.precio_venta_momento}
-                          onChange={(e) => actualizarPrecio(p.id, 'precio_venta_momento', parseFloat(e.target.value) || 0)}
-                          className="w-24 text-right font-display text-base tracking-wide text-[var(--text-primary)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded px-2 py-0.5 focus:outline-none focus:border-[var(--accent-primary)]"
-                        />
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-heading text-[9px] uppercase tracking-widest text-[var(--text-muted)] font-bold">Prov.</span>
-                        <input
-                          type="number"
-                          min="0"
-                          value={p.precio_proveedor_momento}
-                          onChange={(e) => actualizarPrecio(p.id, 'precio_proveedor_momento', parseFloat(e.target.value) || 0)}
-                          className="w-24 text-right font-display text-base tracking-wide text-[var(--text-muted)] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded px-2 py-0.5 focus:outline-none focus:border-[var(--accent-primary)]"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => actualizarPrecio(p.id, 'precio_proveedor_momento', Math.round(p.precio_venta_momento * 0.7))}
-                        className="btn-ghost text-xs py-1.5 w-full"
-                      >
-                        70% prov / 30% swap
-                        <span className="ml-1.5 text-[var(--accent-primary-light)]">
-                          → {formatCurrency(Math.round(p.precio_venta_momento * 0.7))}
-                        </span>
-                      </button>
-                    </div>
+                    <PreciosMomentoFields
+                      precioVenta={p.precio_venta_momento}
+                      precioProveedor={p.precio_proveedor_momento}
+                      onPrecioVentaChange={(v) => actualizarPrecio(p.id, 'precio_venta_momento', v)}
+                      onPrecioProveedorChange={(v) => actualizarPrecio(p.id, 'precio_proveedor_momento', v)}
+                    />
                     <button
                       onClick={() => quitarDelCarrito(p.id)}
                       className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors mt-1"
@@ -309,68 +280,15 @@ export function POSClient({ productos: allProductos }: Props) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <label>Método de pago</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(['efectivo', 'transferencia', 'tarjeta', 'mixto'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setMetodoPago(m)}
-                    style={{
-                      fontFamily: 'var(--font-heading)',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      letterSpacing: '0.08em',
-                      textTransform: 'uppercase',
-                      padding: '10px 6px',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                      border: metodoPago === m
-                        ? '2px solid var(--accent-primary)'
-                        : '1px solid var(--border-default)',
-                      background: metodoPago === m
-                        ? 'rgba(124, 58, 237, 0.15)'
-                        : 'transparent',
-                      color: metodoPago === m
-                        ? 'var(--text-primary)'
-                        : 'var(--text-secondary)',
-                    }}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-
-              {metodoPago === 'mixto' && (
-                <div className="space-y-2 pt-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-heading text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)] w-28 shrink-0">Efectivo</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={montoEfectivo}
-                      onChange={(e) => setMontoEfectivo(parseFloat(e.target.value) || 0)}
-                      className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded px-2 py-1.5 text-right font-display text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-heading text-[10px] uppercase tracking-widest font-bold text-[var(--text-muted)] w-28 shrink-0">Transferencia</span>
-                    <input
-                      type="number"
-                      min="0"
-                      value={montoTransferencia}
-                      onChange={(e) => setMontoTransferencia(parseFloat(e.target.value) || 0)}
-                      className="flex-1 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded px-2 py-1.5 text-right font-display text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-primary)]"
-                    />
-                  </div>
-                  <p className={`font-heading text-[10px] uppercase tracking-widest font-bold text-right ${Math.abs(montoEfectivo + montoTransferencia - totalVenta) < 0.01 ? 'text-[var(--color-success)]' : 'text-[var(--color-warning)]'}`}>
-                    Resta: {formatCurrency(totalVenta - montoEfectivo - montoTransferencia)}
-                  </p>
-                </div>
-              )}
-            </div>
+            <MetodoPagoSelector
+              metodoPago={metodoPago}
+              onMetodoPagoChange={setMetodoPago}
+              total={totalVenta}
+              montoEfectivo={montoEfectivo}
+              montoTransferencia={montoTransferencia}
+              onMontoEfectivoChange={setMontoEfectivo}
+              onMontoTransferenciaChange={setMontoTransferencia}
+            />
 
             <button
               onClick={handleConfirmar}

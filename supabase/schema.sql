@@ -14,6 +14,7 @@ create table productos (
   codigo text unique not null,
   descripcion text not null,
   categoria text,
+  talle text,
   estado text not null default 'disponible' check (estado in ('disponible', 'vendido')),
   precio_proveedor numeric(10,2) not null,
   precio_venta numeric(10,2) not null,

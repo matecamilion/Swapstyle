@@ -12,6 +12,7 @@ export type Producto = {
   codigo: string
   descripcion: string
   categoria: string | null
+  talle: string | null
   estado: 'disponible' | 'vendido'
   precio_proveedor: number
   precio_venta: number

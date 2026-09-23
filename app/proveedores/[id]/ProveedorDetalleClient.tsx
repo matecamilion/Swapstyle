@@ -101,8 +101,8 @@ export function ProveedorDetalleClient({ productos, pagos }: Props) {
                   <th className="text-left px-4 py-3">Código</th>
                   <th className="text-left px-4 py-3">Descripción</th>
                   <th className="text-left px-4 py-3 hidden sm:table-cell">Categoría</th>
-                  <th className="text-right px-4 py-3">P. Venta</th>
                   <th className="text-right px-4 py-3 hidden sm:table-cell">P. Proveedor</th>
+                  <th className="text-right px-4 py-3">P. Venta</th>
                   <th className="text-center px-4 py-3">Estado</th>
                 </tr>
               </thead>
@@ -115,8 +115,8 @@ export function ProveedorDetalleClient({ productos, pagos }: Props) {
                       <td className="px-4 py-3 font-heading text-[12px] uppercase tracking-wider text-[var(--accent-primary-light)] font-bold">{p.codigo}</td>
                       <td className="px-4 py-3 text-[var(--text-primary)]">{p.descripcion}</td>
                       <td className="px-4 py-3 text-[var(--text-secondary)] hidden sm:table-cell">{p.categoria ?? '—'}</td>
-                      <td className="px-4 py-3 text-right font-bold text-[var(--text-primary)]">{formatCurrency(p.precio_venta)}</td>
                       <td className="px-4 py-3 text-right text-[var(--text-secondary)] hidden sm:table-cell">{formatCurrency(p.precio_proveedor)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-[var(--text-primary)]">{formatCurrency(p.precio_venta)}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={p.estado === 'disponible' ? 'badge-disponible inline-block' : 'badge-vendido inline-block'}>
                           {p.estado}

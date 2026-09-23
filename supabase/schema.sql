@@ -19,6 +19,7 @@ create table productos (
   precio_proveedor numeric(10,2) not null,
   precio_venta numeric(10,2) not null,
   proveedor_id uuid references proveedores(id) on delete restrict,
+  oculto_at timestamptz,
   created_at timestamptz default now()
 );
 

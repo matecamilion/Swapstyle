@@ -2,9 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, X } from 'lucide-react'
+import { Trash2 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { crearPrendas } from './actions'
+import {
+  TallesEditor,
+  contarUnidades,
+  type FilaTalle,
+} from '@/components/producto/TallesEditor'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -25,10 +30,6 @@ import { formatCurrency } from '@/lib/format'
 
 const CATEGORIAS = ['Remeras', 'Pantalones', 'Zapatillas', 'Accesorios', 'Sueter', 'Buzos', 'Camperas', 'Otro']
 const PORCENTAJE_PROVEEDOR = 0.7
-const PRESET_LETRAS = ['S', 'M', 'L', 'XL']
-const PRESET_NUMEROS = ['38', '40', '42', '44', '46']
-
-type FilaTalle = { talle: string; cantidad: string }
 
 interface Props {
   open: boolean
@@ -37,6 +38,7 @@ interface Props {
   existingCodigos: string[]
   onClose: () => void
   onSaved: (productos: ProductoConProveedor[]) => void
+  onEliminar: (producto: ProductoConProveedor) => void
 }
 
 function nextNumero(existingCodigos: string[]): number {
@@ -59,7 +61,7 @@ function previewCodigos(existingCodigos: string[], cantidad: number): string {
   return `${formatCodigo(desde)} → ${formatCodigo(desde + cantidad - 1)}`
 }
 
-export function ProductoModal({ open, producto, proveedores, existingCodigos, onClose, onSaved }: Props) {
+export function ProductoModal({ open, producto, proveedores, existingCodigos, onClose, onSaved, onEliminar }: Props) {
   const [form, setForm] = useState({
     descripcion: '',
     categoria: '',
@@ -124,28 +126,6 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     }
   }
 
-  function agregarFila(talle = '') {
-    setTalles((prev) => [...prev, { talle, cantidad: '1' }])
-  }
-
-  function agregarPreset(preset: string[]) {
-    setTalles((prev) => {
-      const yaCargados = new Set(prev.map((t) => t.talle.trim().toUpperCase()))
-      const nuevos = preset
-        .filter((t) => !yaCargados.has(t.toUpperCase()))
-        .map((t) => ({ talle: t, cantidad: '1' }))
-      return [...prev, ...nuevos]
-    })
-  }
-
-  function actualizarFila(index: number, campo: keyof FilaTalle, valor: string) {
-    setTalles((prev) => prev.map((t, i) => (i === index ? { ...t, [campo]: valor } : t)))
-  }
-
-  function quitarFila(index: number) {
-    setTalles((prev) => prev.filter((_, i) => i !== index))
-  }
-
   function validate() {
     const e: Record<string, string> = {}
     if (!form.descripcion.trim()) e.descripcion = 'La descripción es requerida'
@@ -154,10 +134,8 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     if (!form.precio_venta || isNaN(pv) || pv <= 0) e.precio_venta = 'Precio de venta inválido'
     if (!form.precio_proveedor || isNaN(pp) || pp <= 0) e.precio_proveedor = 'Precio de proveedor inválido'
     if (!isNaN(pv) && !isNaN(pp) && pp >= pv) e.precio_proveedor = 'El precio del proveedor debe ser menor al precio de venta'
-    if (!producto) {
-      if (talles.some((t) => !t.talle.trim())) e.talles = 'Completá el talle o quitá la fila'
-      else if (talles.some((t) => !(parseInt(t.cantidad, 10) >= 1))) e.talles = 'La cantidad debe ser al menos 1'
-    }
+    if (talles.some((t) => !t.talle.trim())) e.talles = 'Completá el talle o quitá la fila'
+    else if (talles.some((t) => !(parseInt(t.cantidad, 10) >= 1))) e.talles = 'La cantidad debe ser al menos 1'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -184,7 +162,17 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
           .select('*, proveedores(id, nombre)')
           .single()
         if (error) throw error
-        onSaved([data as ProductoConProveedor])
+
+        // Los talles nuevos se crean con la misma lógica atómica que "Nueva prenda",
+        // copiando los datos ya editados del formulario.
+        const nuevas = talles.length > 0
+          ? await crearPrendas({
+              ...payload,
+              talles: talles.map((t) => ({ talle: t.talle, cantidad: parseInt(t.cantidad, 10) })),
+            })
+          : []
+
+        onSaved([data as ProductoConProveedor, ...nuevas])
       } else {
         // Códigos correlativos + insert atómico del lote: todo del lado del servidor
         const creados = await crearPrendas({
@@ -200,9 +188,11 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
     }
   }
 
-  const totalUnidades = talles.length === 0
-    ? 1
-    : talles.reduce((sum, t) => sum + Math.max(parseInt(t.cantidad, 10) || 0, 0), 0)
+  // En alta, sin filas = 1 prenda sin talle. En edición, las filas son prendas extra.
+  const unidadesTalles = contarUnidades(talles)
+  const totalUnidades = producto
+    ? unidadesTalles
+    : talles.length === 0 ? 1 : unidadesTalles
 
   const pvNum = parseFloat(form.precio_venta)
   const ppNum = parseFloat(form.precio_proveedor)
@@ -226,16 +216,22 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
               <Label htmlFor="codigo">Código</Label>
               <Input
                 id="codigo"
-                value={producto ? producto.codigo : previewCodigos(existingCodigos, totalUnidades)}
+                value={
+                  producto
+                    ? totalUnidades > 0
+                      ? `${producto.codigo}  +  ${previewCodigos(existingCodigos, totalUnidades)}`
+                      : producto.codigo
+                    : previewCodigos(existingCodigos, totalUnidades)
+                }
                 readOnly
                 tabIndex={-1}
                 className="font-mono text-[var(--accent-primary-light)] font-bold opacity-70 cursor-default"
               />
               <p className="text-[var(--text-muted)] text-[10px] font-heading uppercase tracking-wide">
-                {producto
-                  ? 'Generado automáticamente'
-                  : totalUnidades > 1
-                    ? `Rango para ${totalUnidades} prendas`
+                {totalUnidades > 1
+                  ? `Rango para ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''} nueva${totalUnidades !== 1 ? 's' : ''}`
+                  : producto && totalUnidades === 1
+                    ? 'Código de la prenda nueva'
                     : 'Generado automáticamente'}
               </p>
             </div>
@@ -269,79 +265,40 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
 
           {/* Talles */}
           {producto ? (
-            <div className="space-y-1">
-              <Label htmlFor="talle">Talle</Label>
-              <Input
-                id="talle"
-                value={form.talle}
-                onChange={(e) => setForm({ ...form, talle: e.target.value })}
-                placeholder="Sin talle"
+            <>
+              <div className="space-y-1">
+                <Label htmlFor="talle">Talle</Label>
+                <Input
+                  id="talle"
+                  value={form.talle}
+                  onChange={(e) => setForm({ ...form, talle: e.target.value })}
+                  placeholder="Sin talle"
+                />
+              </div>
+              <TallesEditor
+                titulo="Agregar más talles"
+                talles={talles}
+                onChange={setTalles}
+                error={errors.talles}
+                pie={(u) =>
+                  talles.length === 0
+                    ? 'Creá prendas nuevas con los mismos datos y otros talles'
+                    : `Se crearán ${u} prenda${u !== 1 ? 's' : ''} nueva${u !== 1 ? 's' : ''} en estado disponible`
+                }
               />
-            </div>
+            </>
           ) : (
-            <div className="space-y-2 rounded-lg border border-[var(--border-subtle)] p-3">
-              <div className="flex items-center justify-between">
-                <Label>Talles</Label>
-                <span className="text-[10px] font-heading uppercase tracking-wide text-[var(--text-muted)]">Opcional</span>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => agregarPreset(PRESET_LETRAS)} className="btn-ghost text-xs px-2.5 py-1">
-                  {PRESET_LETRAS.join(' ')}
-                </button>
-                <button type="button" onClick={() => agregarPreset(PRESET_NUMEROS)} className="btn-ghost text-xs px-2.5 py-1">
-                  {PRESET_NUMEROS.join(' ')}
-                </button>
-              </div>
-
-              {talles.length > 0 && (
-                <div className="space-y-2">
-                  {talles.map((t, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <Input
-                        value={t.talle}
-                        onChange={(e) => actualizarFila(i, 'talle', e.target.value)}
-                        placeholder="Talle"
-                        className="flex-1"
-                      />
-                      <Input
-                        type="number"
-                        min="1"
-                        step="1"
-                        value={t.cantidad}
-                        onChange={(e) => actualizarFila(i, 'cantidad', e.target.value)}
-                        className="w-20 text-right"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => quitarFila(i)}
-                        aria-label={`Quitar talle ${t.talle || i + 1}`}
-                        className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors p-1"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <button
-                type="button"
-                onClick={() => agregarFila()}
-                className="btn-ghost text-xs w-full py-1.5 flex items-center justify-center"
-              >
-                <Plus size={13} className="mr-1.5" />
-                Agregar talle
-              </button>
-
-              {errors.talles && <p className="text-[var(--color-danger)] text-xs">{errors.talles}</p>}
-
-              <p className="text-[10px] font-heading uppercase tracking-wide text-[var(--text-muted)]">
-                {talles.length === 0
+            <TallesEditor
+              titulo="Talles"
+              talles={talles}
+              onChange={setTalles}
+              error={errors.talles}
+              pie={(u) =>
+                talles.length === 0
                   ? 'Sin talles: se crea 1 prenda sin talle'
-                  : `Se crearán ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''}, una por unidad`}
-              </p>
-            </div>
+                  : `Se crearán ${u} prenda${u !== 1 ? 's' : ''}, una por unidad`
+              }
+            />
           )}
 
           {/* Proveedor autocomplete */}
@@ -454,13 +411,26 @@ export function ProductoModal({ open, producto, proveedores, existingCodigos, on
             </button>
           </div>
 
-          <div className="flex gap-3 pt-4">
+          {producto && (
+            <button
+              type="button"
+              onClick={() => onEliminar(producto)}
+              className="w-full flex items-center justify-center gap-2 text-xs font-heading uppercase tracking-widest font-bold text-[var(--color-danger)] hover:bg-[rgba(239,68,68,0.10)] border border-[var(--border-subtle)] hover:border-[var(--color-danger)] rounded-md py-2 transition-colors"
+            >
+              <Trash2 size={13} />
+              Eliminar esta prenda
+            </button>
+          )}
+
+          <div className="flex gap-3 pt-2">
             <button type="button" onClick={onClose} className="btn-ghost flex-1">Cancelar</button>
             <button type="submit" disabled={loading} className="btn-primary flex-1">
               {loading
                 ? 'Guardando...'
                 : producto
-                  ? 'Guardar'
+                  ? totalUnidades > 0
+                    ? `Guardar cambios y crear ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''}`
+                    : 'Guardar cambios'
                   : `Guardar ${totalUnidades} prenda${totalUnidades !== 1 ? 's' : ''}`}
             </button>
           </div>

@@ -19,6 +19,14 @@ interface Props {
   productos: ProductoConProveedor[]
 }
 
+/** "Proveedor: X · Talle: M", omitiendo la parte que no exista. */
+function lineaProveedorTalle(producto: ProductoConProveedor): string | null {
+  const partes: string[] = []
+  if (producto.proveedores?.nombre) partes.push(`Proveedor: ${producto.proveedores.nombre}`)
+  if (producto.talle) partes.push(`Talle: ${producto.talle}`)
+  return partes.length > 0 ? partes.join(' · ') : null
+}
+
 export function POSClient({ productos: allProductos }: Props) {
   const router = useRouter()
   const [disponibles, setDisponibles] = useState(allProductos)
@@ -203,8 +211,8 @@ export function POSClient({ productos: allProductos }: Props) {
                       )}
                     </div>
                     <p className="text-[var(--text-primary)] font-medium mt-0.5">{p.descripcion}</p>
-                    {p.proveedores && (
-                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{p.proveedores.nombre}</p>
+                    {lineaProveedorTalle(p) && (
+                      <p className="text-xs text-[var(--text-muted)] mt-0.5">{lineaProveedorTalle(p)}</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -243,7 +251,14 @@ export function POSClient({ productos: allProductos }: Props) {
               {carrito.map((p) => (
                 <div key={p.id} className="flex items-start justify-between px-5 py-3 hover:bg-[var(--bg-elevated)] transition-colors gap-3">
                   <div className="flex-1 min-w-0">
-                    <p className="font-heading text-[12px] uppercase tracking-wider text-[var(--accent-primary-light)] font-bold">{p.codigo}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-heading text-[12px] uppercase tracking-wider text-[var(--accent-primary-light)] font-bold">{p.codigo}</span>
+                      {p.talle && (
+                        <span className="font-heading uppercase font-bold text-[10px] tracking-wider text-[var(--text-secondary)] bg-[var(--bg-elevated)] px-1.5 py-0.5 rounded">
+                          Talle: {p.talle}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-[var(--text-primary)] text-sm truncate">{p.descripcion}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

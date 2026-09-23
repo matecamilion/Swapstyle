@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Search, Pencil, ShoppingBag } from 'lucide-react'
+import { Plus, Search, Pencil, ShoppingBag, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -22,15 +22,18 @@ import {
 } from '@/components/ui/select'
 import { ProductoModal } from './ProductoModal'
 import { VenderPrendaModal } from './VenderPrendaModal'
+import { EliminarPrendaDialog, type ModoEliminacion } from './EliminarPrendaDialog'
 import { formatCurrency } from '@/lib/format'
 import type { ProductoConProveedor, Proveedor } from '@/types/database'
 
 interface Props {
   productos: ProductoConProveedor[]
   proveedores: Pick<Proveedor, 'id' | 'nombre'>[]
+  /** Todos los códigos, incluidos los de prendas ocultas */
+  todosLosCodigos: string[]
 }
 
-export function ProductosClient({ productos: initialProductos, proveedores }: Props) {
+export function ProductosClient({ productos: initialProductos, proveedores, todosLosCodigos }: Props) {
   const router = useRouter()
   const [productos, setProductos] = useState(initialProductos)
   const [search, setSearch] = useState('')
@@ -40,6 +43,7 @@ export function ProductosClient({ productos: initialProductos, proveedores }: Pr
   const [modalOpen, setModalOpen] = useState(false)
   const [editando, setEditando] = useState<ProductoConProveedor | null>(null)
   const [vendiendo, setVendiendo] = useState<ProductoConProveedor | null>(null)
+  const [eliminando, setEliminando] = useState<ProductoConProveedor | null>(null)
 
   const categorias = [...new Set(productos.map((p) => p.categoria).filter(Boolean))] as string[]
   const talles = [...new Set(productos.map((p) => p.talle).filter(Boolean))] as string[]
@@ -71,13 +75,30 @@ export function ProductosClient({ productos: initialProductos, proveedores }: Pr
       return next
     })
     const editado = editando !== null
+    // En edición el primer elemento es la prenda editada; el resto son nuevas.
+    const creadas = editado ? guardados.length - 1 : guardados.length
     setModalOpen(false)
     setEditando(null)
     router.refresh()
     toast.success(
-      editado
+      editado && creadas === 0
         ? 'Prenda actualizada'
-        : `${guardados.length} prenda${guardados.length !== 1 ? 's' : ''} creada${guardados.length !== 1 ? 's' : ''}`,
+        : editado
+          ? `Prenda actualizada y ${creadas} prenda${creadas !== 1 ? 's' : ''} creada${creadas !== 1 ? 's' : ''}`
+          : `${creadas} prenda${creadas !== 1 ? 's' : ''} creada${creadas !== 1 ? 's' : ''}`,
+    )
+  }
+
+  function handleEliminado(producto: ProductoConProveedor, modo: ModoEliminacion) {
+    setProductos((prev) => prev.filter((p) => p.id !== producto.id))
+    setEliminando(null)
+    setModalOpen(false)
+    setEditando(null)
+    router.refresh()
+    toast.success(
+      modo === 'oculto'
+        ? `${producto.codigo} quitada del listado`
+        : `${producto.codigo} eliminada definitivamente`,
     )
   }
 
@@ -195,25 +216,34 @@ export function ProductosClient({ productos: initialProductos, proveedores }: Pr
                     </span>
                   </TableCell>
                   <TableCell className="text-right">
-                    {p.estado === 'disponible' && (
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setVendiendo(p)}
-                          title="Marcar como vendido"
-                          className="btn-ghost text-[10px] font-heading uppercase tracking-wider font-bold px-2 py-1 flex items-center"
-                        >
-                          <ShoppingBag size={13} className="mr-1" />
-                          Vendido
-                        </button>
-                        <button
-                          onClick={() => { setEditando(p); setModalOpen(true) }}
-                          title="Editar prenda"
-                          className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end gap-1">
+                      {p.estado === 'disponible' && (
+                        <>
+                          <button
+                            onClick={() => setVendiendo(p)}
+                            title="Marcar como vendido"
+                            className="btn-ghost text-[10px] font-heading uppercase tracking-wider font-bold px-2 py-1 flex items-center"
+                          >
+                            <ShoppingBag size={13} className="mr-1" />
+                            Vendido
+                          </button>
+                          <button
+                            onClick={() => { setEditando(p); setModalOpen(true) }}
+                            title="Editar prenda"
+                            className="text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors p-1"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                        </>
+                      )}
+                      <button
+                        onClick={() => setEliminando(p)}
+                        title="Eliminar prenda"
+                        className="text-[var(--text-muted)] hover:text-[var(--color-danger)] transition-colors p-1"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))
@@ -226,9 +256,10 @@ export function ProductosClient({ productos: initialProductos, proveedores }: Pr
         open={modalOpen}
         producto={editando}
         proveedores={proveedores}
-        existingCodigos={productos.map((p) => p.codigo)}
+        existingCodigos={[...todosLosCodigos, ...productos.map((p) => p.codigo)]}
         onClose={() => { setModalOpen(false); setEditando(null) }}
         onSaved={handleSaved}
+        onEliminar={(p) => setEliminando(p)}
       />
 
       <VenderPrendaModal
@@ -236,6 +267,13 @@ export function ProductosClient({ productos: initialProductos, proveedores }: Pr
         producto={vendiendo}
         onClose={() => setVendiendo(null)}
         onVendido={handleVendido}
+      />
+
+      <EliminarPrendaDialog
+        open={eliminando !== null}
+        producto={eliminando}
+        onClose={() => setEliminando(null)}
+        onEliminado={handleEliminado}
       />
     </>
   )

@@ -17,6 +17,7 @@ export type Producto = {
   precio_proveedor: number
   precio_venta: number
   proveedor_id: string | null
+  oculto_at: string | null
   created_at: string
 }
 
